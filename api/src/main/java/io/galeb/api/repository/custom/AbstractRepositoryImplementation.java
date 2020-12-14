@@ -175,15 +175,6 @@ public abstract class AbstractRepositoryImplementation<T extends AbstractEntity>
         return true;
     }
 
-    public Set<String> mergeRoles(long projectId) {
-        Account account = (Account) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        long accountId = account.getId();
-        List<RoleGroup> roleGroupsFromProject = new ArrayList<>();
-        if (projectId != -1) {
-            roleGroupsFromProject = genericDaoService.roleGroupsFromProject(accountId, projectId);
-        }
-        return roleGroupsFromProject.stream().flatMap(rg -> rg.getRoles().stream()).distinct().map(Enum::toString).collect(Collectors.toSet());
-    }
 
     @Override
     public Set<String> mergeAllRolesOf(Account account) {
