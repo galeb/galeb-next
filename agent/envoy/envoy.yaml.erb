@@ -1,0 +1,48 @@
+<% require 'json' %>
+<% require 'http' %>
+<% ctx = OpenSSL::SSL::SSLContext.new %>
+<% ctx.verify_mode = OpenSSL::SSL::VERIFY_NONE %>
+<% @virtualhosts = JSON.parse(HTTP["X-Galeb-ZoneID" => ENV["ZONE_ID"], "X-Galeb-GroupID" => ENV["GROUP_ID"], "If-None-Match" => 0].get(ENV["MANAGER_URL"] + "/virtualhostscached/" + ENV["ENVIRONMENT_NAME"], :ssl_context => ctx).to_s)["virtualhosts"] %>
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 0.0.0.0, port_value: 8001 }
+
+    filter_chains:
+    - filters:
+      - name: envoy.http_connection_manager
+        config:
+          stat_prefix: ingress_http
+          http_filters:
+          - name: envoy.router
+          route_config:
+            name: local_route
+            virtual_hosts:
+<% for @virtualhost in @virtualhosts %>
+            - name: <%= @virtualhost["name"] %>
+              domains: ["<%= @virtualhost["name"] %>"]
+              routes:
+              - match: { prefix: "/" }
+                route: { cluster: "cluster-<%= @virtualhost["name"] %>" }
+<% end %>
+
+  clusters:
+<% for @virtualhost in @virtualhosts %>
+  - name: cluster-<%= @virtualhost["name"] %>
+    connect_timeout: 0.25s
+    type: STATIC
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
+    hosts:
+<% for @target in @virtualhost["rules"][0]["pool"]["targets"] %>
+<% @target_ip = @target["name"].match(/http:\/\/([^:]+):.*/)[1] %>
+<% @target_port = @target["name"].match(/http:\/\/[^:]+:(.*)/)[1] %>
+    - { socket_address: { address: <%= @target_ip %>, port_value: <%= @target_port %> }}
+<% end %>
+<% end %>

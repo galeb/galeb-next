@@ -1,0 +1,24 @@
+<% require 'json' %>
+<% require 'http' %>
+<% ctx = OpenSSL::SSL::SSLContext.new %>
+<% ctx.verify_mode = OpenSSL::SSL::VERIFY_NONE %>
+<% @virtualhosts = JSON.parse(HTTP["X-Galeb-ZoneID" => ENV["ZONE_ID"], "X-Galeb-GroupID" => ENV["GROUP_ID"], "If-None-Match" => 0].get(ENV["MANAGER_URL"] + "/virtualhostscached/" + ENV["ENVIRONMENT_NAME"], :ssl_context => ctx).to_s)["virtualhosts"] %>
+<% for @virtualhost in @virtualhosts %>
+  upstream backend-<%= @virtualhost["name"].gsub '.', '_' %> {
+<% for @target in @virtualhost["rules"][0]["pool"]["targets"] %>
+    server <%= @target["name"].match(/http:\/\/(.+)/)[1] %> fail_timeout=0  max_conns=1024;
+<% end %>
+    keepalive       1024;
+  }
+
+  server {
+    listen 8000;
+    server_name <%= @virtualhost["name"] %>;
+
+    ssl off;
+
+    location / {
+       proxy_pass http://backend-<%= @virtualhost["name"].gsub '.', '_' %>;
+    }
+  }
+<% end %>
