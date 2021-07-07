@@ -47,18 +47,22 @@ public class NameVirtualHostDefaultHandler implements HttpHandler {
     @Override
     public synchronized void handleRequest(HttpServerExchange exchange) throws Exception {
         final String hostName = exchange.getHostName();
-        final NameVirtualHostHandler nameVirtualHostHandler = context.getBean(NameVirtualHostHandler.class);
-        if (existHostname(hostName)) {            
-            if (!nameVirtualHostHandler.getHosts().containsKey(hostName)) { 
-            	logger.info("adding " + hostName);
-            	final VirtualHost virtualHost = cache.get(hostName);
-            	nameVirtualHostHandler.addHost(hostName, defineNextHandler(virtualHost));
+        if (existHostname(hostName)) {
+            final NameVirtualHostHandler nameVirtualHostHandler = context.getBean(NameVirtualHostHandler.class);
+            if (!nameVirtualHostHandler.getHosts().containsKey(hostName)) {
+                logger.info("adding " + hostName);
+                final VirtualHost virtualHost = cache.get(hostName);
+                nameVirtualHostHandler.addHost(hostName, defineNextHandler(virtualHost));
             }
-            
+
             nameVirtualHostHandler.handleRequest(exchange);
         } else {
-            ResponseCodeOnError.VIRTUALHOST_NOT_FOUND.getHandler().handleRequest(exchange);
+            handleVirtualhostNotFound(exchange);
         }
+    }
+
+    public void handleVirtualhostNotFound(HttpServerExchange exchange) throws Exception {
+        ResponseCodeOnError.VIRTUALHOST_NOT_FOUND.getHandler().handleRequest(exchange);
     }
 
     private boolean existHostname(String hostname) {
